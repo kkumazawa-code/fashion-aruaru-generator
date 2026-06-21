@@ -1,0 +1,1 @@
+# fashion-aruaru-generator
