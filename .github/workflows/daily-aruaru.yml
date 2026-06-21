@@ -19,14 +19,22 @@ jobs:
             -d '{
               "contents": [{
                 "parts": [{
-                  "text": "あなたはInstagram/TikTok向けファッション4コマ漫画シリーズ「@おしゃれって難しい。」のネタ出し担当です。今日のファッションあるあるネタを10個考え、セルフレビューして質を上げてください。【特徴】ターゲット：20〜30代の服好き女性。テイスト：共感できる・笑えて泣ける・日常のリアルなあるある。過去に使ったエピソード（重複NG）：冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子。【ステップ1】ネタ10個を初稿生成。【ステップ2】セルフレビュー（オチが単純すぎないか・予定調和でないか・④に一捻りあるか確認し改善）。【ステップ3】最終版10選を出力。フォーマット：1. **タイトル** → ①〜②〜③〜④ → オチのポイント：（一言）"
+                  "text": "あなたはInstagram/TikTok向けファッション4コマ漫画シリーズのネタ出し担当です。今日のファッションあるあるネタを3個考えてください。フォーマット：1. タイトル → オチ"
                 }]
               }]
             }')
+          echo "=== RAW RESPONSE ==="
+          echo "$RESPONSE"
+          echo "=== PARSE ==="
           echo "$RESPONSE" | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
-          print(data['candidates'][0]['content']['parts'][0]['text'])
+          if 'candidates' in data:
+            print(data['candidates'][0]['content']['parts'][0]['text'])
+          elif 'error' in data:
+            print('ERROR:', data['error']['message'])
+          else:
+            print('UNKNOWN RESPONSE:', list(data.keys()))
           " > result.txt
           cat result.txt
 
