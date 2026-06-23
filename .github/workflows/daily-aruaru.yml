@@ -13,60 +13,37 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          python3 - << 'EOF'
-import urllib.request, json, os
-
-prompt = "今日のファッションあるあるネタを10個考えてください。ルール：主人公は一人の女性のみ。1〜4の4コマで完結。4コマ目に予想外の一捻りオチ。日常リアルな場面。セリフは短く口語的。過去ネタ重複NG：冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子。フォーマット：1. タイトル → 1コマ目 2コマ目 3コマ目 4コマ目オチ → セリフ：1「」2「」3「」4「」"
-
-payload = json.dumps({
-    "model": "llama-3.3-70b-versatile",
-    "messages": [
-        {"role": "system", "content": "あなたはInstagram/TikTok向けファッション4コマ漫画@おしゃれって難しいの敏腕ネタ作家です。"},
-        {"role": "user", "content": prompt}
-    ],
-    "max_tokens": 4096
-}).encode()
-
-req = urllib.request.Request(
-    "https://api.groq.com/openai/v1/chat/completions",
-    data=payload,
-    headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}", "Content-Type": "application/json"}
-)
-with urllib.request.urlopen(req) as resp:
-    data = json.loads(resp.read())
-    result = data["choices"][0]["message"]["content"]
-
-with open("result.txt", "w") as f:
-    f.write(result)
-print(result)
-EOF
+          RESPONSE=$(curl -s https://api.groq.com/openai/v1/chat/completions \
+            -H "Authorization: Bearer $GROQ_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"llama-3.3-70b-versatile","messages":[{"role":"system","content":"Instagram/TikTok向けファッション4コマ漫画のネタ作家。20〜30代女性向けの共感できるあるあるを作る。"},{"role":"user","content":"ファッションあるあるネタを10個。ルール：主人公は女性一人のみ。4コマ完結。4コマ目に予想外のオチ。日常の場面。セリフは短く口語的。重複NG：冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子。フォーマット：番号. タイトル 1コマ:場面 2コマ:場面 3コマ:場面 4コマ:オチ セリフ1「」セリフ2「」セリフ3「」セリフ4「」"}],"max_tokens":4096}')
+          echo "$RESPONSE" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          print(data['choices'][0]['message']['content'])
+          " > result.txt
+          cat result.txt
 
       - name: Send Email
         env:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          python3 - << 'EOF'
-import smtplib, os
-from datetime import datetime, timezone, timedelta
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
-jst = timezone(timedelta(hours=9))
-today = datetime.now(jst).strftime("%Y/%m/%d")
-result = open("result.txt").read()
-
-sender = "volleyball.kumakuma@gmail.com"
-msg = MIMEMultipart()
-msg["Subject"] = f"👗 {today} のファッションあるあるネタ10選"
-msg["From"] = sender
-msg["To"] = sender
-msg.attach(MIMEText(result, "plain", "utf-8"))
-
-with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-    smtp.login(sender, os.environ["GMAIL_APP_PASSWORD"])
-    smtp.send_message(msg)
-print("Email sent!")
-EOF
+          export TODAY=$(date '+%Y/%m/%d' -d '+9 hours')
+          python3 -c "
+          import smtplib, os
+          from email.mime.text import MIMEText
+          from email.mime.multipart import MIMEMultipart
+          sender = 'volleyball.kumakuma@gmail.com'
+          msg = MIMEMultipart()
+          msg['Subject'] = '👗 ' + os.environ['TODAY'] + ' のファッションあるあるネタ10選'
+          msg['From'] = sender
+          msg['To'] = sender
+          msg.attach(MIMEText(open('result.txt').read(), 'plain', 'utf-8'))
+          with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+              smtp.login(sender, os.environ['GMAIL_APP_PASSWORD'])
+              smtp.send_message(msg)
+          print('Email sent!')
+          "
 
       - name: Save artifact
         uses: actions/upload-artifact@v4
