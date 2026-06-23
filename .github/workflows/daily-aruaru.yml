@@ -2,7 +2,7 @@ name: Daily Fashion Aruaru Generator
 
 on:
   schedule:
-    - cron: "0 23 * * *"
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,54 +13,60 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          RESPONSE=$(curl -s https://api.groq.com/openai/v1/chat/completions             -H "Authorization: Bearer $GROQ_API_KEY"             -H "Content-Type: application/json"             -d @- << JSONEOF
-          {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-              {
-                "role": "system",
-                "content": "あなたはInstagram/TikTok向けファッション4コマ漫画@おしゃれって難しいの敏腕ネタ作家です。20〜30代女性に刺さる、笑えて共感できる日常ファッションあるあるを生み出すのが得意です。"
-              },
-              {
-                "role": "user",
-                "content": "今日のファッションあるあるネタを10個考えてください。ルール：主人公は一人の女性のみ。①〜④の4コマで完結。④に予想外の一捻りオチ。日常リアルな場面。セリフは短く口語的。過去ネタ重複NG：冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子。フォーマット：1. タイトル → ①場面 ②場面 ③場面 ④場面オチ → セリフ：①セリフ ②セリフ ③セリフ ④セリフ"
-              }
-            ],
-            "max_tokens": 4096
-          }
-JSONEOF
-          )
-          echo "$RESPONSE" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          print(data["choices"][0]["message"]["content"])
-          " > result.txt
-          cat result.txt
+          python3 - << 'EOF'
+import urllib.request, json, os
+
+prompt = "今日のファッションあるあるネタを10個考えてください。ルール：主人公は一人の女性のみ。1〜4の4コマで完結。4コマ目に予想外の一捻りオチ。日常リアルな場面。セリフは短く口語的。過去ネタ重複NG：冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子。フォーマット：1. タイトル → 1コマ目 2コマ目 3コマ目 4コマ目オチ → セリフ：1「」2「」3「」4「」"
+
+payload = json.dumps({
+    "model": "llama-3.3-70b-versatile",
+    "messages": [
+        {"role": "system", "content": "あなたはInstagram/TikTok向けファッション4コマ漫画@おしゃれって難しいの敏腕ネタ作家です。"},
+        {"role": "user", "content": prompt}
+    ],
+    "max_tokens": 4096
+}).encode()
+
+req = urllib.request.Request(
+    "https://api.groq.com/openai/v1/chat/completions",
+    data=payload,
+    headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}", "Content-Type": "application/json"}
+)
+with urllib.request.urlopen(req) as resp:
+    data = json.loads(resp.read())
+    result = data["choices"][0]["message"]["content"]
+
+with open("result.txt", "w") as f:
+    f.write(result)
+print(result)
+EOF
 
       - name: Send Email
         env:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          export TODAY=$(date "+%Y/%m/%d" -d "+9 hours")
-          python3 -c "
-          import smtplib, os
-          from email.mime.text import MIMEText
-          from email.mime.multipart import MIMEMultipart
-          sender = "volleyball.kumakuma@gmail.com"
-          receiver = "volleyball.kumakuma@gmail.com"
-          password = os.environ["GMAIL_APP_PASSWORD"]
-          today = os.environ["TODAY"]
-          result = open("result.txt").read()
-          msg = MIMEMultipart()
-          msg["Subject"] = f"👗 {today} のファッションあるあるネタ10選"
-          msg["From"] = sender
-          msg["To"] = receiver
-          msg.attach(MIMEText(result, "plain", "utf-8"))
-          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-              smtp.login(sender, password)
-              smtp.send_message(msg)
-          print("Email sent!")
-          "
+          python3 - << 'EOF'
+import smtplib, os
+from datetime import datetime, timezone, timedelta
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+jst = timezone(timedelta(hours=9))
+today = datetime.now(jst).strftime("%Y/%m/%d")
+result = open("result.txt").read()
+
+sender = "volleyball.kumakuma@gmail.com"
+msg = MIMEMultipart()
+msg["Subject"] = f"👗 {today} のファッションあるあるネタ10選"
+msg["From"] = sender
+msg["To"] = sender
+msg.attach(MIMEText(result, "plain", "utf-8"))
+
+with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+    smtp.login(sender, os.environ["GMAIL_APP_PASSWORD"])
+    smtp.send_message(msg)
+print("Email sent!")
+EOF
 
       - name: Save artifact
         uses: actions/upload-artifact@v4
