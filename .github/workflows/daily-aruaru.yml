@@ -2,7 +2,7 @@ name: Daily Fashion Aruaru Generator
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 jobs:
@@ -13,37 +13,27 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          RESPONSE=$(curl -s https://api.groq.com/openai/v1/chat/completions \
-            -H "Authorization: Bearer $GROQ_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "model": "llama-3.3-70b-versatile",
-              "messages": [{
+          RESPONSE=$(curl -s https://api.groq.com/openai/v1/chat/completions             -H "Authorization: Bearer $GROQ_API_KEY"             -H "Content-Type: application/json"             -d @- << JSONEOF
+          {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+              {
                 "role": "system",
-                "content": "あなたはInstagram/TikTok向けファッション4コマ漫画「@おしゃれって難しい。」の敏腕ネタ作家です。20〜30代女性に刺さる、笑えて共感できる日常ファッションあるあるを生み出すのが得意です。"
-              },{
+                "content": "あなたはInstagram/TikTok向けファッション4コマ漫画@おしゃれって難しいの敏腕ネタ作家です。20〜30代女性に刺さる、笑えて共感できる日常ファッションあるあるを生み出すのが得意です。"
+              },
+              {
                 "role": "user",
-                "content": "今日のファッションあるあるネタを10個考えてください。
-
-【絶対守ること】
-- 主人公は一人の女性（友達との相談シーンは不要）
-- ①〜④の4コマで完結するストーリー構成
-- ④に予想外の一捻りがあること（単純な後悔・失敗オチはNG）
-- 日常のリアルな場面（自宅・お店・外出先）を舞台にする
-- セリフは短く口語的に（「え…なにこれ」「やばい」「もう無理」など）
-
-【過去ネタ（重複NG）】
-冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子
-
-【出力フォーマット（このフォーマット厳守）】
-1. **タイトル** → ①場面 ②場面 ③場面 ④場面（一捻りオチ） → セリフ例：①「」②「」③「」④「」"
-              }],
-              "max_tokens": 4096
-            }')
+                "content": "今日のファッションあるあるネタを10個考えてください。ルール：主人公は一人の女性のみ。①〜④の4コマで完結。④に予想外の一捻りオチ。日常リアルな場面。セリフは短く口語的。過去ネタ重複NG：冬の静電気地獄、お直しに出したまま、ネット購入の賭け、タグが邪魔、同じ服かぶり、サイズの罠、ファスナーが上がらない、ポケットがない問題、季節を読み間違えた、着替えが間に合わない、雨の日のコーデ、洗濯したら縮んだ、プチプラのはずが、褒められた服しか着ない、サイズが迷子。フォーマット：1. タイトル → ①場面 ②場面 ③場面 ④場面オチ → セリフ：①セリフ ②セリフ ③セリフ ④セリフ"
+              }
+            ],
+            "max_tokens": 4096
+          }
+JSONEOF
+          )
           echo "$RESPONSE" | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
-          print(data['choices'][0]['message']['content'])
+          print(data["choices"][0]["message"]["content"])
           " > result.txt
           cat result.txt
 
@@ -51,28 +41,25 @@ jobs:
         env:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          export TODAY=$(date '+%Y/%m/%d' -d '+9 hours')
+          export TODAY=$(date "+%Y/%m/%d" -d "+9 hours")
           python3 -c "
           import smtplib, os
           from email.mime.text import MIMEText
           from email.mime.multipart import MIMEMultipart
-
-          sender = 'volleyball.kumakuma@gmail.com'
-          receiver = 'volleyball.kumakuma@gmail.com'
-          password = os.environ['GMAIL_APP_PASSWORD']
-          today = os.environ['TODAY']
-          result = open('result.txt').read()
-
+          sender = "volleyball.kumakuma@gmail.com"
+          receiver = "volleyball.kumakuma@gmail.com"
+          password = os.environ["GMAIL_APP_PASSWORD"]
+          today = os.environ["TODAY"]
+          result = open("result.txt").read()
           msg = MIMEMultipart()
-          msg['Subject'] = f'👗 {today} のファッションあるあるネタ10選'
-          msg['From'] = sender
-          msg['To'] = receiver
-          msg.attach(MIMEText(result, 'plain', 'utf-8'))
-
-          with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+          msg["Subject"] = f"👗 {today} のファッションあるあるネタ10選"
+          msg["From"] = sender
+          msg["To"] = receiver
+          msg.attach(MIMEText(result, "plain", "utf-8"))
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
               smtp.login(sender, password)
               smtp.send_message(msg)
-          print('Email sent!')
+          print("Email sent!")
           "
 
       - name: Save artifact
